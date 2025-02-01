@@ -17,21 +17,47 @@ pipeline {
             }
         }
 
+        stage('Setup Node.js') {
+            steps {
+                script {
+                    echo "Checking Node.js and npm versions..."
+                    sh '''
+                        if ! command -v node &> /dev/null
+                        then
+                            echo "❌ Node.js is not installed! Install it on Jenkins."
+                            exit 1
+                        fi
+                        if ! command -v npm &> /dev/null
+                        then
+                            echo "❌ npm is not installed! Install it on Jenkins."
+                            exit 1
+                        fi
+                        echo "✅ Node.js Version: $(node -v)"
+                        echo "✅ npm Version: $(npm -v)"
+                    '''
+                }
+            }
+        }
+
         stage('Install Dependencies') {
             steps {
-                sh '''
-                    echo "Installing dependencies..."
-                    npm install
-                '''
+                script {
+                    sh '''
+                        echo "Installing dependencies..."
+                        npm install || { echo "❌ Failed to install dependencies"; exit 1; }
+                    '''
+                }
             }
         }
 
         stage('Build React App') {
             steps {
-                sh '''
-                    echo "Building the React application..."
-                    npm run build
-                '''
+                script {
+                    sh '''
+                        echo "Building the React application..."
+                        npm run build || { echo "❌ Build failed"; exit 1; }
+                    '''
+                }
             }
         }
 
@@ -40,7 +66,7 @@ pipeline {
                 script {
                     sh '''
                         echo "Deploying to Netlify..."
-                        npx netlify-cli deploy --dir=build --prod --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_SITE_ID
+                        npx netlify-cli deploy --dir=build --prod --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
                     '''
                 }
             }

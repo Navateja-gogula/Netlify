@@ -9,7 +9,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git 'https://github.com/your-username/your-react-repo.git'
+                git 'https://github.com/Navateja-gogula/Netlify.git'
             }
         }
 

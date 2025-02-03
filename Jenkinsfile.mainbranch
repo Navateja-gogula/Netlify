@@ -1,0 +1,87 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs "NodeJS_18"
+    }
+
+    environment {
+        NETLIFY_AUTH_TOKEN = credentials('netlify_token')
+        NETLIFY_SITE_ID = 'f9daabf7-0eff-4d0d-ab08-10176b22621a'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    echo "🔄 Checking out code from GitHub..."
+                    sh '''
+                        git clone -b main https://github.com/Navateja-gogula/Netlify.git || { echo "❌ Git clone failed"; exit 1; }
+                        cd Netlify
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Node.js & npm') {
+            steps {
+                script {
+                    echo "🔍 Checking Node.js and npm versions..."
+                    sh '''
+                        which node || { echo "❌ Node.js not found!"; exit 1; }
+                        which npm || { echo "❌ npm not found!"; exit 1; }
+                        echo "✅ Node.js Version: $(node -v)"
+                        echo "✅ npm Version: $(npm -v)"
+                    '''
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo "📦 Installing dependencies..."
+                    sh '''
+                        cd Netlify
+                        npm install || { echo "❌ Failed to install dependencies"; exit 1; }
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    echo "🧪 Running test cases..."
+                    sh '''
+                        cd Netlify
+                        npm test || { echo "❌ Tests failed"; exit 1; }
+                        echo "✅ All tests passed!"
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Netlify (Staging)') {
+            steps {
+                script {
+                    echo "🚀 Deploying to Netlify (Staging)..."
+                    sh '''
+                        cd Netlify
+                        npx netlify deploy --dir=build --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Deployment failed"; exit 1; }
+                        echo "✅ Deployment successful!"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🎉 ✅ Deployment to staging successful!"
+        }
+        failure {
+            echo "❌ Deployment failed! Check logs for details."
+        }
+    }
+}

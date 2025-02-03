@@ -102,19 +102,40 @@ pipeline {
             }
         }
 
-        stage('Deploy to Netlify (prod branch)') {
-            when {
-                branch 'prod'
+        stage('Wait for PR Merge') {
+            steps {
+                script {
+                    echo "⏳ Waiting for PR merge into prod..."
+
+                    // Polling GitHub API to check if the PR has been merged
+                    def prMerged = false
+                    def prNumber = sh(script: 'curl -X GET -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
+                    def prInfo = readJSON text: prNumber
+                    
+                    // Check for merge status
+                    while (!prMerged) {
+                        prInfo.each { pr ->
+                            if (pr.state == 'closed' && pr.merged == true) {
+                                prMerged = true
+                            }
+                        }
+                        if (!prMerged) {
+                            echo "⏳ PR not merged yet, waiting for 1 minute..."
+                            sleep 60
+                        }
+                    }
+                    echo "✅ PR merged successfully!"
+                }
             }
+        }
+
+        stage('Deploy to Netlify after Merge') {
             steps {
                 script {
                     echo "🚀 Deploying to Netlify after PR merge..."
                     sh '''
-                        # Merge main into prod after PR is merged
                         git checkout $PROD_BRANCH
                         git pull origin $PROD_BRANCH
-                        
-                        # Deploy to Netlify
                         npm install -g netlify-cli
                         cd Netlify
                         npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }

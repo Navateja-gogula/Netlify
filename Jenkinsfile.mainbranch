@@ -52,6 +52,18 @@ pipeline {
             }
         }
 
+        stage('Build Project') {
+            steps {
+                script {
+                    echo "🏗️ Building the project..."
+                    sh '''
+                        cd Netlify
+                        npm run build || { echo "❌ Build failed"; exit 1; }
+                    '''
+                }
+            }
+        }
+
         stage('Run Tests') {
             steps {
                 script {
@@ -71,6 +83,10 @@ pipeline {
                     echo "🚀 Deploying to Netlify (Staging)..."
                     sh '''
                         cd Netlify
+                        if [ ! -d "build" ]; then
+                            echo "❌ Build directory not found! Did you forget to run 'npm run build'?"
+                            exit 1
+                        fi
                         npx netlify deploy --dir=build --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Deployment failed"; exit 1; }
                         echo "✅ Deployment successful!"
                     '''

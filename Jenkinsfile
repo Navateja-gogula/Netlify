@@ -16,8 +16,8 @@ pipeline {
                 script {
                     echo "🔄 Checking out code from GitHub..."
                     sh '''
-                        git clone -b main https://github.com/Navateja-gogula/Netlify.git || { echo "❌ Git clone failed"; exit 1; }
-                        cd Netlify
+                        rm -rf Netlify || true
+                        git clone -b main https://github.com/Navateja-gogula/Netlify.git Netlify || { echo "❌ Git clone failed"; exit 1; }
                         echo "✅ Code checkout complete."
                     '''
                 }
@@ -44,6 +44,7 @@ pipeline {
                 script {
                     sh '''
                         echo "🧹 Cleaning old dependencies..."
+                        cd Netlify
                         rm -rf node_modules package-lock.json
                         echo "📦 Installing dependencies..."
                         npm install || { echo "❌ Failed to install dependencies"; exit 1; }
@@ -57,6 +58,7 @@ pipeline {
                 script {
                     sh '''
                         echo "⚙️ Building the React application..."
+                        cd Netlify
                         npm run build || { echo "❌ Build failed"; exit 1; }
                     '''
                 }
@@ -68,7 +70,9 @@ pipeline {
                 script {
                     sh '''
                         echo "🚀 Deploying to Netlify..."
-                        npx netlify deploy --dir=build --prod --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
+                        npm install -g netlify-cli || { echo "❌ Failed to install Netlify CLI"; exit 1; }
+                        cd Netlify
+                        npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
                     '''
                 }
             }

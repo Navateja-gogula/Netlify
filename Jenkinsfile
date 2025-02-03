@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        nodejs "NodeJS_18" 
+        nodejs "NodeJS_18"
     }
 
     environment {
@@ -108,13 +108,15 @@ pipeline {
                     echo "⏳ Waiting for PR merge into prod..."
                     def prMerged = false
 
-                    // Check PR details periodically until merged
+                    // Poll GitHub API and wait until PR is merged
                     while (!prMerged) {
-                        // Fetch the list of open PRs
+                        echo "⏳ Checking if PR is merged..."
                         def prList = sh(script: 'curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
+
+                        // Parse the response from GitHub API
                         def prInfo = readJSON text: prList
 
-                        // Check if the PR has been merged
+                        // Loop through PRs to check for a merged PR
                         prInfo.each { pr ->
                             if (pr.state == 'closed' && pr.merged == true) {
                                 prMerged = true
@@ -122,9 +124,9 @@ pipeline {
                             }
                         }
 
-                        // If not merged, wait and retry
+                        // If the PR is not merged, wait for 1 minute
                         if (!prMerged) {
-                            echo "⏳ PR not merged yet, waiting for 1 minute..."
+                            echo "⏳ PR not merged yet, retrying in 1 minute..."
                             sleep 60
                         }
                     }

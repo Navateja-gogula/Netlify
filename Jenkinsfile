@@ -106,25 +106,28 @@ pipeline {
             steps {
                 script {
                     echo "⏳ Waiting for PR merge into prod..."
-
-                    // Polling GitHub API to check if the PR has been merged
                     def prMerged = false
-                    def prNumber = sh(script: 'curl -X GET -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
-                    def prInfo = readJSON text: prNumber
-                    
-                    // Check for merge status
+
+                    // Check PR details periodically until merged
                     while (!prMerged) {
+                        // Fetch the list of open PRs
+                        def prList = sh(script: 'curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
+                        def prInfo = readJSON text: prList
+
+                        // Check if the PR has been merged
                         prInfo.each { pr ->
                             if (pr.state == 'closed' && pr.merged == true) {
                                 prMerged = true
+                                echo "✅ PR merged successfully!"
                             }
                         }
+
+                        // If not merged, wait and retry
                         if (!prMerged) {
                             echo "⏳ PR not merged yet, waiting for 1 minute..."
                             sleep 60
                         }
                     }
-                    echo "✅ PR merged successfully!"
                 }
             }
         }

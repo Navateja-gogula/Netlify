@@ -69,12 +69,13 @@ pipeline {
             }
         }
 
-        stage('Merge to Prod and Deploy to Netlify') {
+        stage('Create Pull Request for Production Merge') {
             steps {
                 script {
-                    echo "📌 Merging main into prod and deploying to Netlify..."
+                    echo "📌 Creating pull request for merging main into prod..."
                     sh '''
                         cd Netlify
+                        git checkout -b temp-merge-branch
                         
                         # Set GitHub credentials to authenticate
                         git config --global user.email "ngogula@anergroup.com"
@@ -83,13 +84,35 @@ pipeline {
                         # Update the origin URL with the GitHub token
                         git remote set-url origin https://$GITHUB_TOKEN@github.com/Navateja-gogula/Netlify.git
                         
-                        # Merge main into prod
+                        git push origin temp-merge-branch
+
+                        PR_RESPONSE=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            https://api.github.com/repos/Navateja-gogula/Netlify/pulls \
+                            -d '{
+                                "title": "Merge main into prod",
+                                "head": "temp-merge-branch",
+                                "base": "prod",
+                                "body": "Auto-generated pull request for merging main into prod."
+                            }')
+
+                        echo "✅ Pull request created. Please review and merge manually."
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Netlify (prod branch)') {
+            when {
+                branch 'prod'
+            }
+            steps {
+                script {
+                    echo "🚀 Deploying to Netlify after PR merge..."
+                    sh '''
+                        # Merge main into prod after PR is merged
                         git checkout $PROD_BRANCH
                         git pull origin $PROD_BRANCH
-                        git merge origin/$MAIN_BRANCH --no-ff -m "Merge main into prod"
-                        git push origin $PROD_BRANCH
-
-                        echo "✅ Successfully merged main into prod!"
                         
                         # Deploy to Netlify
                         npm install -g netlify-cli

@@ -108,21 +108,15 @@ pipeline {
                     echo "⏳ Waiting for the PR to be merged manually..."
                     sh '''
                         while true; do
-                            # Fetch the latest commit hashes
-                            git fetch origin
-                            
-                            # Get the latest commit hash on prod branch
-                            LATEST_COMMIT_HASH=$(git log origin/prod -1 --pretty=format:"%H")
-                            
-                            # Get the latest commit hash on temp-merge-branch
-                            MERGED_COMMIT_HASH=$(git log origin/temp-merge-branch -1 --pretty=format:"%H")
-                            
-                            # Compare the commit hashes
-                            if [ "$LATEST_COMMIT_HASH" == "$MERGED_COMMIT_HASH" ]; then
-                                echo "✅ Commit from temp-merge-branch is merged into prod!"
+                            PR_STATUS=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                                -H "Accept: application/vnd.github.v3+json" \
+                                https://api.github.com/repos/Navateja-gogula/Netlify/pulls \
+                                | grep -q '"state": "closed"' && echo "merged" || echo "open")
+
+                            if [ "$PR_STATUS" = "merged" ]; then
+                                echo "✅ Pull request merged! Proceeding with deployment."
                                 break
                             fi
-                            
                             echo "⏳ Waiting for PR merge..."
                             sleep 60
                         done

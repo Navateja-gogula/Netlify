@@ -105,44 +105,43 @@ pipeline {
         stage('Wait for PR Merge') {
             steps {
                 script {
-                    echo "⏳ Waiting for PR merge into prod..."
-                    def prMerged = false
-
-                    // Check PR details periodically until merged
-                    while (!prMerged) {
-                        // Fetch the list of open PRs
-                        def prList = sh(script: 'curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
-                        def prInfo = readJSON text: prList
-
-                        // Check if the PR has been merged
-                        prInfo.each { pr ->
-                            if (pr.state == 'closed' && pr.merged == true) {
-                                prMerged = true
-                                echo "✅ PR merged successfully!"
-                            }
-                        }
-
-                        // If not merged, wait and retry
-                        if (!prMerged) {
-                            echo "⏳ PR not merged yet, waiting for 1 minute..."
+                    echo "⏳ Waiting for the PR to be merged manually..."
+                    sh '''
+                        while true; do
+                            # Fetch the latest commit hashes
+                            git fetch origin
+                            
+                            # Get the latest commit hash on prod branch
+                            LATEST_COMMIT_HASH=$(git log origin/prod -1 --pretty=format:"%H")
+                            
+                            # Get the latest commit hash on temp-merge-branch
+                            MERGED_COMMIT_HASH=$(git log origin/temp-merge-branch -1 --pretty=format:"%H")
+                            
+                            # Compare the commit hashes
+                            if [ "$LATEST_COMMIT_HASH" == "$MERGED_COMMIT_HASH" ]; then
+                                echo "✅ Commit from temp-merge-branch is merged into prod!"
+                                break
+                            fi
+                            
+                            echo "⏳ Waiting for PR merge..."
                             sleep 60
-                        }
-                    }
+                        done
+                    '''
                 }
             }
         }
 
-        stage('Deploy to Netlify after Merge') {
+        stage('Deploy to Netlify (prod branch)') {
             steps {
                 script {
-                    echo "🚀 Deploying to Netlify after PR merge..."
                     sh '''
-                        git checkout $PROD_BRANCH
-                        git pull origin $PROD_BRANCH
+                        echo "🚀 Deploying to Netlify..."
+                        git checkout prod
+                        git pull origin prod
                         npm install -g netlify-cli
                         cd Netlify
                         npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
-                        echo "✅ Deployment to Netlify successful!"
+                        echo "✅ Deployment successful!"
                     '''
                 }
             }

@@ -1,0 +1,154 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs "NodeJS_18"
+    }
+
+    environment {
+        NETLIFY_AUTH_TOKEN = credentials('netlify_token')
+        NETLIFY_SITE_ID = '915df1e5-27d7-4881-97bd-4087f9196c89'
+        GITHUB_TOKEN = credentials('github_token') // GitHub token for PR creation
+        REPO_URL = "https://github.com/Navateja-gogula/Netlify.git"
+        PROD_BRANCH = "prod"
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    echo "🔄 Checking out code from GitHub..."
+                    sh '''
+                        git clone -b prod $REPO_URL Netlify || { echo "❌ Git clone failed"; exit 1; }
+                        cd Netlify
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Node.js & npm') {
+            steps {
+                script {
+                    echo "🔍 Checking Node.js and npm versions..."
+                    sh '''
+                        which node || { echo "❌ Node.js not found!"; exit 1; }
+                        which npm || { echo "❌ npm not found!"; exit 1; }
+                        echo "✅ Node.js Version: $(node -v)"
+                        echo "✅ npm Version: $(npm -v)"
+                    '''
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo "📦 Installing dependencies..."
+                    sh '''
+                        cd Netlify
+                        npm install || { echo "❌ Failed to install dependencies"; exit 1; }
+                    '''
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    echo "🧪 Running test cases..."
+                    sh '''
+                        cd Netlify
+                        npm test || { echo "❌ Tests failed"; exit 1; }
+                        echo "✅ All tests passed!"
+                    '''
+                }
+            }
+        }
+
+        stage('Push to Prod Branch & Create Pull Request') {
+            steps {
+                script {
+                    echo "📌 Pushing code to prod branch and creating PR..."
+
+                    sh '''
+                        cd Netlify
+                        git checkout prod
+                        git pull origin prod
+                        git merge main || { echo "❌ Merge failed"; exit 1; }
+                        git push origin prod || { echo "❌ Git push failed"; exit 1; }
+
+                        # Create PR using GitHub API
+                        PR_RESPONSE=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+                            -H "Accept: application/vnd.github.v3+json" \
+                            https://api.github.com/repos/Navateja-gogula/Netlify/pulls \
+                            -d '{
+                                "title": "Merge main into prod",
+                                "head": "main",
+                                "base": "prod",
+                                "body": "Auto-generated pull request for merging main into prod."
+                            }')
+
+                        echo "✅ Pull request created. Please review and merge manually."
+                    '''
+                }
+            }
+        }
+
+        stage('Wait for PR Merge') {
+            steps {
+                script {
+                    echo "⏳ Waiting for PR merge into prod..."
+                    def prMerged = false
+
+                    // Poll GitHub API and wait until PR is merged
+                    while (!prMerged) {
+                        echo "⏳ Checking if PR is merged..."
+                        def prList = sh(script: 'curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
+
+                        // Parse the response from GitHub API
+                        def prInfo = readJSON text: prList
+
+                        // Loop through PRs to check for a merged PR
+                        prInfo.each { pr ->
+                            if (pr.state == 'closed' && pr.merged == true) {
+                                prMerged = true
+                                echo "✅ PR merged successfully!"
+                            }
+                        }
+
+                        // If the PR is not merged, wait for 1 minute
+                        if (!prMerged) {
+                            echo "⏳ PR not merged yet, retrying in 1 minute..."
+                            sleep 60
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Netlify (Prod)') {
+            steps {
+                script {
+                    echo "🚀 Deploying to Netlify (Production)..."
+                    sh '''
+                        cd Netlify
+                        git checkout prod
+                        git pull origin prod
+                        npm install -g netlify-cli
+                        npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Deployment failed"; exit 1; }
+                        echo "✅ Deployment successful!"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "🎉 ✅ Deployment to production successful!"
+        }
+        failure {
+            echo "❌ Deployment failed! Check logs for details."
+        }
+    }
+}

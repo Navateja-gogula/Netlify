@@ -11,31 +11,27 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 script {
-                    checkout scmGit(branches: [[name: 'main']], 
-                                    extensions: [], 
-                                    userRemoteConfigs: [[url: 'https://github.com/Navateja-gogula/Netlify.git']])
+                    echo "🔄 Checking out code from GitHub..."
+                    sh '''
+                        git clone -b main https://github.com/Navateja-gogula/Netlify.git || { echo "❌ Git clone failed"; exit 1; }
+                        cd Netlify
+                        echo "✅ Code checkout complete."
+                    '''
                 }
             }
         }
 
-        stage('Setup Node.js') {
+        stage('Verify Node.js & npm') {
             steps {
                 script {
-                    echo "Checking Node.js and npm versions..."
+                    echo "🔍 Checking Node.js and npm versions..."
                     sh '''
-                        if ! command -v node &> /dev/null
-                        then
-                            echo "❌ Node.js is not installed! Install it on Jenkins."
-                            exit 1
-                        fi
-                        if ! command -v npm &> /dev/null
-                        then
-                            echo "❌ npm is not installed! Install it on Jenkins."
-                            exit 1
-                        fi
+                        echo "Current PATH: $PATH"
+                        which node || { echo "❌ Node.js not found! Install it on Jenkins."; exit 1; }
+                        which npm || { echo "❌ npm not found! Install it on Jenkins."; exit 1; }
                         echo "✅ Node.js Version: $(node -v)"
                         echo "✅ npm Version: $(npm -v)"
                     '''
@@ -43,11 +39,13 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Clean & Install Dependencies') {
             steps {
                 script {
                     sh '''
-                        echo "Installing dependencies..."
+                        echo "🧹 Cleaning old dependencies..."
+                        rm -rf node_modules package-lock.json
+                        echo "📦 Installing dependencies..."
                         npm install || { echo "❌ Failed to install dependencies"; exit 1; }
                     '''
                 }
@@ -58,7 +56,7 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        echo "Building the React application..."
+                        echo "⚙️ Building the React application..."
                         npm run build || { echo "❌ Build failed"; exit 1; }
                     '''
                 }
@@ -69,8 +67,8 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        echo "Deploying to Netlify..."
-                        npx netlify-cli deploy --dir=build --prod --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
+                        echo "🚀 Deploying to Netlify..."
+                        npx netlify deploy --dir=build --prod --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
                     '''
                 }
             }
@@ -79,7 +77,7 @@ pipeline {
 
     post {
         success {
-            echo "✅ Deployment successful!"
+            echo "🎉 ✅ Deployment successful!"
         }
         failure {
             echo "❌ Deployment failed! Check logs for details."

@@ -72,8 +72,8 @@ pipeline {
         stage('Create Pull Request for Production Merge') {
             steps {
                 script {
+                    echo "📌 Creating pull request for merging main into prod..."
                     sh '''
-                        echo "📌 Creating pull request for merging main into prod..."
                         cd Netlify
                         git checkout -b temp-merge-branch
                         git push origin temp-merge-branch

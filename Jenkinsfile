@@ -76,6 +76,14 @@ pipeline {
                     sh '''
                         cd Netlify
                         git checkout -b temp-merge-branch
+                        
+                        # Set GitHub credentials to authenticate
+                        git config --global user.email "ngogula@anergroup.com"
+                        git config --global user.name "Navateja-gogula"
+                        
+                        # Update the origin URL with the GitHub token
+                        git remote set-url origin https://$GITHUB_TOKEN@github.com/Navateja-gogula/Netlify.git
+                        
                         git push origin temp-merge-branch
 
                         PR_RESPONSE=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \

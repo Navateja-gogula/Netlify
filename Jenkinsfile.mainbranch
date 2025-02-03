@@ -16,8 +16,11 @@ pipeline {
                 script {
                     echo "🔄 Checking out code from GitHub..."
                     sh '''
-                        git clone -b main https://github.com/Navateja-gogula/Netlify.git || { echo "❌ Git clone failed"; exit 1; }
-                        cd Netlify
+                        if [ -d "Netlify" ]; then
+                            echo "⚠️ Netlify directory exists. Removing it..."
+                            rm -rf Netlify
+                        fi
+                        git clone -b main https://github.com/Navateja-gogula/Netlify.git
                     '''
                 }
             }

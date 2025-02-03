@@ -69,13 +69,12 @@ pipeline {
             }
         }
 
-        stage('Create Pull Request for Production Merge') {
+        stage('Merge to Prod and Deploy to Netlify') {
             steps {
                 script {
-                    echo "📌 Creating pull request for merging main into prod..."
+                    echo "📌 Merging main into prod and deploying to Netlify..."
                     sh '''
                         cd Netlify
-                        git checkout -b temp-merge-branch
                         
                         # Set GitHub credentials to authenticate
                         git config --global user.email "ngogula@anergroup.com"
@@ -84,64 +83,19 @@ pipeline {
                         # Update the origin URL with the GitHub token
                         git remote set-url origin https://$GITHUB_TOKEN@github.com/Navateja-gogula/Netlify.git
                         
-                        git push origin temp-merge-branch
+                        # Merge main into prod
+                        git checkout $PROD_BRANCH
+                        git pull origin $PROD_BRANCH
+                        git merge origin/$MAIN_BRANCH --no-ff -m "Merge main into prod"
+                        git push origin $PROD_BRANCH
 
-                        PR_RESPONSE=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
-                            -H "Accept: application/vnd.github.v3+json" \
-                            https://api.github.com/repos/Navateja-gogula/Netlify/pulls \
-                            -d '{
-                                "title": "Merge main into prod",
-                                "head": "temp-merge-branch",
-                                "base": "prod",
-                                "body": "Auto-generated pull request for merging main into prod."
-                            }')
-
-                        echo "✅ Pull request created. Please review and merge manually."
-                    '''
-                }
-            }
-        }
-
-        stage('Wait for PR Merge') {
-            steps {
-                script {
-                    echo "⏳ Waiting for the PR to be merged manually..."
-                    sh '''
-                        while true; do
-                            # Fetch the latest commit hashes
-                            git fetch origin
-                            
-                            # Get the latest commit hash on prod branch
-                            LATEST_COMMIT_HASH=$(git log origin/prod -1 --pretty=format:"%H")
-                            
-                            # Get the latest commit hash on temp-merge-branch
-                            MERGED_COMMIT_HASH=$(git log origin/temp-merge-branch -1 --pretty=format:"%H")
-                            
-                            # Compare the commit hashes
-                            if [ "$LATEST_COMMIT_HASH" == "$MERGED_COMMIT_HASH" ]; then
-                                echo "✅ Commit from temp-merge-branch is merged into prod!"
-                                break
-                            fi
-                            
-                            echo "⏳ Waiting for PR merge..."
-                            sleep 60
-                        done
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy to Netlify (prod branch)') {
-            steps {
-                script {
-                    sh '''
-                        echo "🚀 Deploying to Netlify..."
-                        git checkout prod
-                        git pull origin prod
+                        echo "✅ Successfully merged main into prod!"
+                        
+                        # Deploy to Netlify
                         npm install -g netlify-cli
                         cd Netlify
                         npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Netlify deployment failed"; exit 1; }
-                        echo "✅ Deployment successful!"
+                        echo "✅ Deployment to Netlify successful!"
                     '''
                 }
             }

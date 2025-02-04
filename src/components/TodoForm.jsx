@@ -22,7 +22,7 @@ function TodoForm({ onSubmit }) {
         onChange={(e) => setInput(e.target.value)}
         className="todo-input"
       />
-      <button className="todo-button">Add </button>
+      <button className="todo-button">Added </button>
     </form>
   );
 }

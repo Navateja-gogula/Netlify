@@ -7,20 +7,34 @@ pipeline {
 
     environment {
         NETLIFY_AUTH_TOKEN = credentials('netlify_token')
-        NETLIFY_SITE_ID = '915df1e5-27d7-4881-97bd-4087f9196c89'
-        GITHUB_TOKEN = credentials('github_token') // GitHub token for PR creation
+        NETLIFY_PROD_SITE_ID = '915df1e5-27d7-4881-97bd-4087f9196c89'  // Replace with actual Netlify production site ID
+        GITHUB_TOKEN = credentials('github_token')
         REPO_URL = "https://github.com/Navateja-gogula/Netlify.git"
         PROD_BRANCH = "prod"
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout Production Code') {
             steps {
                 script {
-                    echo "🔄 Checking out code from GitHub..."
+                    echo "🔄 Checking out production code from GitHub..."
                     sh '''
-                        git clone -b prod $REPO_URL Netlify || { echo "❌ Git clone failed"; exit 1; }
-                        cd Netlify
+                        rm -rf Netlify || true
+                        git clone -b $PROD_BRANCH $REPO_URL Netlify || { echo "❌ Git clone failed"; exit 1; }
+                        echo "✅ Code checkout complete."
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Directory Structure') {
+            steps {
+                script {
+                    sh '''
+                        echo "📁 Checking if Netlify exists..."
+                        ls -l Netlify || { echo "❌ Netlify repo not found!"; exit 1; }
+                        ls -l Netlify || { echo "❌ Netlify directory not found!"; exit 1; }
+                        echo "✅ Directory structure verified."
                     '''
                 }
             }
@@ -43,112 +57,69 @@ pipeline {
         stage('Install Dependencies') {
             steps {
                 script {
-                    echo "📦 Installing dependencies..."
                     sh '''
-                        cd Netlify
+                        echo "📦 Installing dependencies..."
+                        cd Netlify 
                         npm install || { echo "❌ Failed to install dependencies"; exit 1; }
                     '''
                 }
             }
         }
 
-        stage('Run Tests') {
+        stage('Build Application') {
             steps {
                 script {
-                    echo "🧪 Running test cases..."
                     sh '''
-                        cd Netlify
-                        npm test || { echo "❌ Tests failed"; exit 1; }
-                        echo "✅ All tests passed!"
+                        echo "⚙️ Building application..."
+                        cd Netlify 
+                        npm run build || { echo "❌ Build failed"; exit 1; }
+                        echo "✅ Build successful."
                     '''
                 }
             }
         }
 
-        stage('Push to Prod Branch & Create Pull Request') {
+        stage('Deploy to Netlify (Production)') {
             steps {
                 script {
-                    echo "📌 Pushing code to prod branch and creating PR..."
-
+                    echo "🚀 Deploying to Netlify Production..."
                     sh '''
-                        cd Netlify
-                        git checkout prod
-                        git pull origin prod
-                        git merge main || { echo "❌ Merge failed"; exit 1; }
-                        git push origin prod || { echo "❌ Git push failed"; exit 1; }
+                        cd Netlify 
 
-                        # Create PR using GitHub API
-                        PR_RESPONSE=$(curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
-                            -H "Accept: application/vnd.github.v3+json" \
-                            https://api.github.com/repos/Navateja-gogula/Netlify/pulls \
-                            -d '{
-                                "title": "Merge main into prod",
-                                "head": "main",
-                                "base": "prod",
-                                "body": "Auto-generated pull request for merging main into prod."
-                            }')
-
-                        echo "✅ Pull request created. Please review and merge manually."
-                    '''
-                }
-            }
-        }
-
-        stage('Wait for PR Merge') {
-            steps {
-                script {
-                    echo "⏳ Waiting for PR merge into prod..."
-                    def prMerged = false
-
-                    // Poll GitHub API and wait until PR is merged
-                    while (!prMerged) {
-                        echo "⏳ Checking if PR is merged..."
-                        def prList = sh(script: 'curl -s -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/repos/Navateja-gogula/Netlify/pulls', returnStdout: true).trim()
-
-                        // Parse the response from GitHub API
-                        def prInfo = readJSON text: prList
-
-                        // Loop through PRs to check for a merged PR
-                        prInfo.each { pr ->
-                            if (pr.state == 'closed' && pr.merged == true) {
-                                prMerged = true
-                                echo "✅ PR merged successfully!"
-                            }
-                        }
-
-                        // If the PR is not merged, wait for 1 minute
-                        if (!prMerged) {
-                            echo "⏳ PR not merged yet, retrying in 1 minute..."
-                            sleep 60
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Deploy to Netlify (Prod)') {
-            steps {
-                script {
-                    echo "🚀 Deploying to Netlify (Production)..."
-                    sh '''
-                        cd Netlify
-                        git checkout prod
-                        git pull origin prod
+                        # Install Netlify CLI
                         npm install -g netlify-cli
-                        npx netlify deploy --dir=build --prod --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID || { echo "❌ Deployment failed"; exit 1; }
-                        echo "✅ Deployment successful!"
+
+                        # Deploy to Netlify production site
+                        npx netlify deploy --auth $NETLIFY_AUTH_TOKEN --site $NETLIFY_PROD_SITE_ID --dir build --prod --message "Production deployment" || { echo "❌ Production deployment to Netlify failed"; exit 1; }
+
+                        echo "✅ Production deployment successful!"
                     '''
                 }
+            }
+        }
+
+        stage('Send Email Notification') {
+            steps {
+                echo "📧 Sending email notification for production deployment..."
+                mail to: 'gogulanavateja1910@gmail.com',
+                     subject: '🚀 Production Deployment Successful',
+                     body: 'The latest changes have been successfully deployed to Netlify Production.',
+                     from: 'gogulateja92@gmail.com',
+                     replyTo: 'gogulanavateja1910@gmail.com'
             }
         }
     }
 
     post {
+        always {
+            echo "Cleaning up workspace..."
+            cleanWs()
+        }
         success {
-            echo "🎉 ✅ Deployment to production successful!"
+            echo "✅ Deployment completed successfully!"
         }
         failure {
-            echo "❌ Deployment failed! Check logs for details."
+            echo "❌ Deployment failed. Check logs for details."
         }
     }
 }

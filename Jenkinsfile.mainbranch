@@ -34,7 +34,6 @@ pipeline {
                     sh '''
                         echo "📁 Checking if Netlify exists..."
                         ls -l Netlify || { echo "❌ Netlify repo not found!"; exit 1; }
-                        ls -l Netlify || { echo "❌ Netlify directory not found!"; exit 1; }
                         echo "✅ Directory structure verified."
                     '''
                 }
